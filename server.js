@@ -2,6 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const authRoutes = require('./routes/authRoutes');
 const Order = require('./models/Order'); // Import the Order model
 const User = require('./models/User'); // Import the User model
@@ -15,86 +16,103 @@ const app = express();
 app.use(express.json());
 app.use(cors()); // Enable CORS
 
+// Middleware to authenticate user
+const authenticate = (req, res, next) => {
+    const token = req.headers['authorization'];
+    if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => { // Use your JWT secret key
+        if (err) {
+            return res.status(401).json({ message: 'Failed to authenticate token' });
+        }
+        req.userId = decoded.id;
+        next();
+    });
+};
+
 // Routes
 app.use('/api/users', authRoutes);
 
 // User data endpoint
-app.get('/api/user', async (req, res) => {
+app.get('/api/user', authenticate, async (req, res) => {
     try {
-      // Fetch user data here
-      const user = await User.findById(req.user.id);
-  
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-  
-      res.json(user);
+        const user = await User.findById(req.userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const { fullName, username, email, phone } = user;
+        res.json({ fullName, username, email, phone });
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      res.status(500).json({ message: 'Server error' });
+        console.error('Error fetching user data:', error);
+        res.status(500).json({ message: 'Server error' });
     }
-  });
-  
+});
 
 // Update user info endpoint
-app.post('/api/user', async (req, res) => {
-  try {
-    // Assume user is authenticated and the ID is obtained from the request
-    const userId = req.user.id; // This should come from your authentication middleware
+app.post('/api/user', authenticate, async (req, res) => {
+    try {
+        const userId = req.userId; // Obtained from authentication middleware
+        const { fullName, username, email, phone } = req.body;
 
-    const { name, username, email } = req.body;
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { fullName, username, email, phone },
+            { new: true } // Return the updated user
+        );
 
-    // Update user in the database
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { name, username, email },
-      { new: true } // Return the updated user
-    );
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
 
-    if (!updatedUser) {
-      return res.status(404).json({ message: 'User not found' });
+        res.json({ message: 'User info updated successfully!', user: updatedUser });
+    } catch (error) {
+        console.error('Error updating user data:', error);
+        res.status(500).json({ message: 'Server error' });
     }
+});
 
-    res.json({ message: 'User info updated successfully!', user: updatedUser });
+// Checkout endpoint
+app.post('/api/checkout', async (req, res) => {
+  const { fullName, email, phone, address, city, postalCode, paymentMethod, cardDetails, items, totalPrice } = req.body;
+
+  // Validate the required fields
+  if (!fullName || !email || !phone || !address || !city || !postalCode || !paymentMethod || !items || !totalPrice) {
+      return res.status(400).json({ message: 'Please provide all required fields.' });
+  }
+
+  // If payment method is card, validate card details
+  if (paymentMethod === 'card' && (!cardDetails.cardNumber || !cardDetails.expiryDate || !cardDetails.cvv)) {
+      return res.status(400).json({ message: 'Please provide all card details.' });
+  }
+
+  try {
+      const newOrder = new Order({
+          fullName,
+          email,
+          phone,
+          address,
+          city,
+          postalCode,
+          paymentMethod,
+          cardDetails: paymentMethod === 'card' ? cardDetails : null,
+          items,
+          totalPrice,
+      });
+
+      await newOrder.save();
+
+      console.log('New Order:', newOrder);
+      return res.status(200).json({ message: 'Order received successfully!', order: newOrder });
   } catch (error) {
-    console.error('Error updating user data:', error);
-    res.status(500).json({ message: 'Server error' });
+      console.error('Error saving order:', error);
+      return res.status(500).json({ message: 'Error placing order. Please try again.' });
   }
 });
 
-// Endpoint to handle checkout submissions
-app.post('/api/checkout', async (req, res) => {
-    const { name, address, city, postalCode, phone, email, paymentMethod, cardDetails, items, totalPrice } = req.body;
-
-    // Validate data (basic example, adjust as per your needs)
-    if (!name || !address || !city || !postalCode || !phone || !email || !paymentMethod || !items || !totalPrice) {
-        return res.status(400).json({ message: 'Please provide all required fields.' });
-    }
-
-    try {
-        const newOrder = new Order({
-            name,
-            address,
-            city,
-            postalCode,
-            phone,
-            email,
-            paymentMethod,
-            cardDetails: paymentMethod === 'card' ? cardDetails : null,
-            items, // Store ordered items
-            totalPrice, // Store total price
-        });
-
-        await newOrder.save(); // Save the order to the database
-
-        console.log('New Order:', newOrder);
-
-        return res.status(200).json({ message: 'Order received successfully!', order: newOrder });
-    } catch (error) {
-        console.error('Error saving order:', error);
-        return res.status(500).json({ message: 'Error placing order. Please try again.' });
-    }
-});
 
 // Start server
 const PORT = process.env.PORT || 5000;
