@@ -79,23 +79,46 @@ exports.getUser = async (req, res) => {
 
 // Update user profile
 exports.updateUser = async (req, res) => {
-  const { fullName, username, email, phone } = req.body;
-
-  try {
-    let user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    const { fullName, username, email, phone } = req.body;
+  
+    try {
+      // Validate that req.user.id exists before using
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+  
+      // Use findByIdAndUpdate for efficiency and pass { new: true } to return the updated user
+      const updatedUser = await User.findByIdAndUpdate(
+        req.user.id,
+        {
+          fullName: fullName || undefined, // This will only update if fullName is provided
+          username: username || undefined,
+          email: email || undefined,
+          phone: phone || undefined,
+        },
+        { new: true, runValidators: true } // runValidators will ensure validation rules are applied
+      );
+  
+      // If user not found
+      if (!updatedUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+  
+      // Return updated user data with success message
+      res.json({ message: 'User updated successfully', user: updatedUser });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).json({ message: 'Server error' });
     }
-
-    user.fullName = fullName || user.fullName;
-    user.username = username || user.username;
-    user.email = email || user.email;
-    user.phone = phone || user.phone;
-
-    await user.save();
-    res.json({ user });
+  };
+  
+  // Get all orders for the logged-in user
+exports.getUserOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ userId: req.user.id });
+    res.json(orders);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 };
