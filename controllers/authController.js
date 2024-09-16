@@ -7,7 +7,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
 exports.registerUser = async (req, res) => {
@@ -111,14 +111,4 @@ exports.updateUser = async (req, res) => {
       res.status(500).json({ message: 'Server error' });
     }
   };
-  
-  // Get all orders for the logged-in user
-exports.getUserOrders = async (req, res) => {
-  try {
-    const orders = await Order.find({ userId: req.user.id });
-    res.json(orders);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+

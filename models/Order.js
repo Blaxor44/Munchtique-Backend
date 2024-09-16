@@ -1,8 +1,7 @@
-// ./models/Order.js
 const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema({
-    fullName: { type: String, required: true },
+    fullName: {type: String},
     email: { type: String, required: true },
     phone: { type: String, required: true },
     address: { type: String, required: true },
