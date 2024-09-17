@@ -17,7 +17,9 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cors({
-    origin: 'https://munchtique-frontend.vercel.app/',
+    origin: 'https://munchtique-frontend.vercel.app', // Replace with your actual frontend URL
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   }));
 
 // Middleware to authenticate user
