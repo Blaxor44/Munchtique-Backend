@@ -16,7 +16,9 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(cors()); // Enable CORS
+app.use(cors({
+    origin: 'https://munchtique-frontend.vercel.app/',
+  }));
 
 // Middleware to authenticate user
 const authenticate = (req, res, next) => {
